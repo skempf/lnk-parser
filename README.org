@@ -1,0 +1,4 @@
+#+TITLE: README
+MS LNK binary file parser written in LISP.
+* Background
+* Tool
