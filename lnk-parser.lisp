@@ -308,7 +308,7 @@
   "return LinkInfo section as integer list."
   (multiple-value-bind (size ioff2) (get-link-info-size lnk-array)
     (let* ((ioff (if offset offset (- ioff2 size)))
-           (ilst (get-byte-chunk ioff size)))
+           (ilst (get-byte-chunk ioff size lnk-array)))
       ilst)))
 
 ;;;-----------------------------------------------------------------------------
