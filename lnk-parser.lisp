@@ -120,6 +120,7 @@
 (defun pprint-date (sec-since-epoch)
   "return pretty-pring string representing date."
   (multiple-value-bind (s m h d mo y day dst z) (decode-universal-time sec-since-epoch)
+    (declare (ignore day))
     (let ((dst (if dst " DST" "")))
       (format nil
               "~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d GMC~1@d~A" 
@@ -300,6 +301,7 @@
 (defun get-link-info-size (lnk-array &key (offset nil))
   "return LinkInfo section size."
   (multiple-value-bind (s1 ioff1) (get-link-target-id-list-size lnk-array)
+    (declare (ignore s1))
     (let* ((ioff (if offset offset ioff1))
            (size (get-integer-from-bytes (get-byte-chunk ioff 4 lnk-array))))
       (values size (+ ioff size)))))
@@ -316,6 +318,7 @@
 (defun get-string-data (lnk-array &key (width 2) (offset nil))
   "return string data section."
   (multiple-value-bind (s2 ioff2) (get-link-info-size lnk-array)
+    (declare (ignore s2))
     (let ((link-flags (get-link-flags lnk-array))
           (alst nil)
           (ioff (if offset offset ioff2)))
