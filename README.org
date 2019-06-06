@@ -9,7 +9,7 @@ I couldn't find a good tool to look at the contents of a LNK file. Many tools, l
 
 [fn:ref1] MS-SHLLINK Specification, Version 5.0 2018-09-12, retrieved 2019-03-25. Website [[https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-shllink][ms-shllnk]]. PDF version 5.0 [[https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-SHLLINK/%5bMS-SHLLINK%5d.pdf][ms-shllnk-v5.0.pdf]].
 
-* Working with LISP Investigating Infected LNK File
+* Investigating Infected LNK File with LISP
 I had been looking for an opportunity to explore quick prototyping with LISP. The interactive REPL combined with the Emacs SLIME mode proved to be a useful combination to explore the binary file. I enjoyed the few hours I spent working on this.
 
 The Perl script I tried decoded some of the file, and through that, I knew that the LNK file was running MS PowerShell, but the specific command was encoded. I was most interested in determining the actual command, so I did not implement the entire specification into this parser. In the interest of prototyping, I also didn't worry too much about what the best long term structures would be to hold certain pieces of information. If I need this tool more than once, then maybe I'll spend some time cleaning it up.

